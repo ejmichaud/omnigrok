@@ -40,4 +40,8 @@ python scripts/train-mnist-mlp.py -F results run with optimization_steps=100 log
 ```
 This script takes about 10 seconds to run on my machine. 
 
+Note that using SEML for doing searches over configurations takes a bit of setup. I have a custom version of the package which you can install with
+```
+pip install git+https://github.com/ejmichaud/seml.git
+```
 
