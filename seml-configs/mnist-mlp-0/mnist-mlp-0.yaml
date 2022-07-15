@@ -1,0 +1,48 @@
+
+seml:
+  executable: scripts/train-mnist-mlp.py
+  name: mnist-mlp-0
+  output_dir: seml-configs/mnist-mlp-0/log
+  project_root_dir: ../../
+  conda_environment: torch-cuda
+
+slurm:
+  experiments_per_job: 3
+  sbatch_options:
+    gres: gpu:1       # num GPUs
+    mem: 5G          # memory
+    cpus-per-task: 2  # num cores
+    time: 0-03:00     # max time, D-HH:MM
+
+fixed:
+  train_points: 1000
+  optimization_steps: 100000
+  batch_size: 200
+  loss_function: "MSE"
+  optimizer: "AdamW"
+  lr: 0.001
+  initialization_scale: 7.0
+  download_directory: "om/user/ericjm/Downloads/"
+
+  depth: 3
+  width: 200
+  activation: "ReLU"
+
+  log_freq: 100
+  verbose: False
+
+
+grid:
+  weight_decay:
+    type: loguniform
+    min: 5e-3
+    max: 3e-1
+    num: 8  
+  seed:
+    type: choice
+    options:
+      - 0
+      - 1
+      - 2
+      - 3
+

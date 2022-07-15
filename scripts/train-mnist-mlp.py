@@ -236,10 +236,10 @@ def run(train_points,
     with tqdm(total=optimization_steps, disable=not verbose) as pbar:
         for x, labels in islice(cycle(train_loader), optimization_steps):
             if steps % log_freq == 0:
-                ex.info['train']['loss'].append(compute_loss(mlp, train, loss_function, device))
-                ex.info['train']['accuracy'].append(compute_accuracy(mlp, train, device))
-                ex.info['val']['loss'].append(compute_loss(mlp, test, loss_function, device))
-                ex.info['val']['accuracy'].append(compute_accuracy(mlp, test, device))
+                ex.info['train']['loss'].append(compute_loss(mlp, train, loss_function, device, N=len(train)))
+                ex.info['train']['accuracy'].append(compute_accuracy(mlp, train, device, N=len(train)))
+                ex.info['val']['loss'].append(compute_loss(mlp, test, loss_function, device, N=len(test)))
+                ex.info['val']['accuracy'].append(compute_accuracy(mlp, test, device, N=len(test)))
                 ex.info['log_steps'].append(steps)
                 pbar.set_description("L: {0:1.1e}|{1:1.1e}. A: {2:2.1f}%|{3:2.1f}%".format(
                     ex.info['train']['loss'][-1],
