@@ -222,6 +222,8 @@ def run(train_points,
 
     # prepare for logging
     ex.info['log_steps'] = []
+    ex.info['l2'] = []
+    ex.info['last_layer_l2'] = []
     ex.info['train'] = {
         'loss': [],
         'accuracy': []
@@ -241,6 +243,11 @@ def run(train_points,
                 ex.info['val']['loss'].append(compute_loss(mlp, test, loss_function, device, N=len(test)))
                 ex.info['val']['accuracy'].append(compute_accuracy(mlp, test, device, N=len(test)))
                 ex.info['log_steps'].append(steps)
+                with torch.no_grad():
+                    total = sum(torch.pow(p, 2).sum() for p in mlp.parameters())
+                    ex.info['l2'].append(np.sqrt(total.item()))
+                    last_layer = sum(torch.pow(p, 2).sum() for p in mlp[-1].parameters())
+                    ex.info['last_layer_l2'].append(np.sqrt(last_layer.item()))
                 pbar.set_description("L: {0:1.1e}|{1:1.1e}. A: {2:2.1f}%|{3:2.1f}%".format(
                     ex.info['train']['loss'][-1],
                     ex.info['val']['loss'][-1],

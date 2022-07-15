@@ -8,7 +8,7 @@ seml:
 
 slurm:
   experiments_per_job: 1
-  max_simultaneous_jobs: 15
+  max_simultaneous_jobs: 18
   sbatch_options:
     gres: gpu:1       # num GPUs
     mem: 4G          # memory
