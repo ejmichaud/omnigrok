@@ -1,0 +1,50 @@
+
+seml:
+  executable: scripts/train-mnist-mlp.py
+  name: mnist-mlp-4
+  output_dir: seml-configs/mnist-mlp-4/log
+  project_root_dir: ../../
+  conda_environment: grok
+
+slurm:
+  experiments_per_job: 1
+  max_simultaneous_jobs: 18
+  sbatch_options:
+    gres: gpu:1       # num GPUs
+    mem: 4G          # memory
+    cpus-per-task: 2  # num cores
+    time: 0-05:00     # max time, D-HH:MM
+
+fixed:
+  train_points: 8192
+  optimization_steps: 100000
+  batch_size: 200
+  loss_function: "MSE"
+  optimizer: "AdamW"
+  lr: 0.001
+  download_directory: "/n/home04/ericjm/Downloads"
+
+  depth: 3
+  width: 200
+  activation: "ReLU"
+
+  log_freq: 100
+  verbose: False
+
+
+grid:
+  weight_decay:
+    type: loguniform
+    min: 1e-4
+    max: 3e-1
+    num: 5
+  initialization_scale:
+    type: uniform
+    min: 1.0
+    max: 30.0
+    num: 15
+  seed:
+    type: choice
+    options:
+      - 0
+
