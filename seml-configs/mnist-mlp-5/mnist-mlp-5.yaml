@@ -1,8 +1,8 @@
 
 seml:
   executable: scripts/train-mnist-mlp.py
-  name: mnist-mlp-4
-  output_dir: seml-configs/mnist-mlp-4/log
+  name: mnist-mlp-5
+  output_dir: seml-configs/mnist-mlp-5/log
   project_root_dir: ../../
   conda_environment: torch-cuda
 
@@ -41,7 +41,7 @@ grid:
   initialization_scale:
     type: uniform
     min: 1.0
-    max: 30.0
+    max: 100.0
     num: 15
   seed:
     type: choice

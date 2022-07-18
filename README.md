@@ -45,3 +45,11 @@ Note that using SEML for doing searches over configurations takes a bit of setup
 pip install git+https://github.com/ejmichaud/seml.git
 ```
 
+## Accessing experimental data
+
+I've been running experiments with the `scripts/train-mnist-mlp.py` script on the MIT OpenMind cluster. The results are being saved to a MongoDB. This is a cool setup since it makes the results accessible from any computer, not just from the OpenMind cluster. 
+
+For an example of how to download and visualize this data, see the `notebooks/visualize-mnist.ipynb` notebook. You'll see that this requires SEML to be installed. To install my version of SEML, use: `pip install git+https://github.com/ejmichaud/seml.git`. Then edit `~/.config/seml/mongodb.config` to point to the right MongoDB (I'll provide credentials privately). You should then be able to run the notebook. 
+
+Experiments are organized into MongoDB collections. The directory `seml-configs` contains the experiment names and the configs which specified the parameter search for each experiment.
+
