@@ -6,11 +6,8 @@ This script performs training runs on MNIST, with lots of configuration options!
 
 """
 
-from collections import defaultdict
 from itertools import islice
 import random
-import time
-from pathlib import Path
 import math
 
 import numpy as np
@@ -20,7 +17,6 @@ import torch
 import torch.nn as nn
 import torchvision
 
-import seml
 from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 ex = Experiment("train-mnist-mlp")
@@ -101,10 +97,6 @@ def compute_loss(network, dataset, loss_function, device, N=2000, batch_size=50)
 
 
 
-@ex.post_run_hook
-def collect_stats(_run):
-    seml.collect_exp_stats(_run)
-
 # --------------------------
 #    ,-------------.
 #   (_\  CONFIG     \
@@ -122,13 +114,13 @@ def cfg():
     # training parameters
     train_points = 1000
     optimization_steps = 10000
-    batch_size = 200
+    batch_size = 256
     loss_function = 'MSE' # 'MSE' or 'CrossEntropy'
     optimizer = 'AdamW'
     weight_decay = 0.1
     lr = 1e-3
     initialization_scale = 7.0
-    download_directory = "/om/user/ericjm/Downloads/"
+    download_directory = "data/"
 
     # architecture parameters
     depth = 3 # the number of nn.Linear modules in the model
@@ -136,18 +128,16 @@ def cfg():
     activation = 'ReLU' # 'ReLU' or 'Tanh' or 'Sigmoid' or 'GELU'
 
     # logging parameters
-    log_freq = math.ceil(optimization_steps / 500)
+    log_freq = 1 # log(steps) == log_freq --> do a logging step
     verbose = True
 
     # computing parameters
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     dtype = torch.float32
+    dnn = True
 
 
     overwrite = None
-    db_collection = None
-    if db_collection is not None:
-        ex.observers.append(seml.create_mongodb_observer(db_collection, overwrite=overwrite))
 
 
 # --------------------------
@@ -175,8 +165,11 @@ def run(train_points,
         verbose,
         device,
         dtype,
+        dnn,
         seed,
         _log):
+   
+    device = torch.device(device)
     
     torch.set_default_dtype(dtype)
     torch.manual_seed(seed)
@@ -196,31 +189,56 @@ def run(train_points,
     activation_fn = activation_dict[activation]
 
     # create model
-    layers = [nn.Flatten()]
-    for i in range(depth):
-        if i == 0:
-            layers.append(nn.Linear(784, width))
-            layers.append(activation_fn())
-        elif i == depth - 1:
-            layers.append(nn.Linear(width, 10))
-        else:
-            layers.append(nn.Linear(width, width))
-            layers.append(activation_fn())
-    mlp = nn.Sequential(*layers).to(device)
+    def create_dnn():
+      layers = [nn.Flatten()]
+      for i in range(depth):
+          if i == 0:
+              layers.append(nn.Linear(784, width))
+              layers.append(activation_fn())
+          elif i == depth - 1:
+              layers.append(nn.Linear(width, 10))
+          else:
+              layers.append(nn.Linear(width, width))
+              layers.append(activation_fn())
+      return nn.Sequential(*layers).to(device)
+
+    def create_cnn():
+      layers = []
+      n_channels = width//5
+      for i in range(depth):
+          if i == 0:
+              #784 -> 28x28
+              layers.append(nn.Conv2d(1, n_channels, kernel_size=3, padding=1))
+              layers.append(activation_fn())
+          else:
+              layers.append(nn.Conv2d(n_channels, n_channels, kernel_size=3, padding=1))
+              layers.append(nn.MaxPool2d(2,2))
+              layers.append(activation_fn())
+      layers.append(nn.Flatten())
+      resolution = 28//2**(depth - 1)
+      layers.append(nn.Linear(n_channels*resolution*resolution, 10))
+      return nn.Sequential(*layers).to(device)
+    
+    if dnn:
+      network_model = create_dnn()
+    else:
+      network_model = create_cnn()
+    
     with torch.no_grad():
-        for p in mlp.parameters():
+        for p in network_model.parameters():
             p.data = initialization_scale * p.data
     _log.debug("Created model.")
 
     # create optimizer
     assert optimizer in optimizer_dict, f"Unsupported optimizer choice: {optimizer}"
-    optimizer = optimizer_dict[optimizer](mlp.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = optimizer_dict[optimizer](network_model.parameters(), lr=lr, weight_decay=weight_decay)
 
     # define loss function
     assert loss_function in loss_function_dict
     loss_fn = loss_function_dict[loss_function]()
 
     # prepare for logging
+    
     ex.info['log_steps'] = []
     ex.info['l2'] = []
     ex.info['last_layer_l2'] = []
@@ -237,16 +255,16 @@ def run(train_points,
     one_hots = torch.eye(10, 10).to(device)
     with tqdm(total=optimization_steps, disable=not verbose) as pbar:
         for x, labels in islice(cycle(train_loader), optimization_steps):
-            if steps % log_freq == 0:
-                ex.info['train']['loss'].append(compute_loss(mlp, train, loss_function, device, N=len(train)))
-                ex.info['train']['accuracy'].append(compute_accuracy(mlp, train, device, N=len(train)))
-                ex.info['val']['loss'].append(compute_loss(mlp, test, loss_function, device, N=len(test)))
-                ex.info['val']['accuracy'].append(compute_accuracy(mlp, test, device, N=len(test)))
+            if steps == 0 or np.log2(steps) % log_freq == 0:
+                ex.info['train']['loss'].append(compute_loss(network_model, train, loss_function, device, N=len(train)))
+                ex.info['train']['accuracy'].append(compute_accuracy(network_model, train, device, N=len(train)))
+                ex.info['val']['loss'].append(compute_loss(network_model, test, loss_function, device, N=len(test)))
+                ex.info['val']['accuracy'].append(compute_accuracy(network_model, test, device, N=len(test)))
                 ex.info['log_steps'].append(steps)
                 with torch.no_grad():
-                    total = sum(torch.pow(p, 2).sum() for p in mlp.parameters())
+                    total = sum(torch.pow(p, 2).sum() for p in network_model.parameters())
                     ex.info['l2'].append(np.sqrt(total.item()))
-                    last_layer = sum(torch.pow(p, 2).sum() for p in mlp[-1].parameters())
+                    last_layer = sum(torch.pow(p, 2).sum() for p in network_model[-1].parameters())
                     ex.info['last_layer_l2'].append(np.sqrt(last_layer.item()))
                 pbar.set_description("L: {0:1.1e}|{1:1.1e}. A: {2:2.1f}%|{3:2.1f}%".format(
                     ex.info['train']['loss'][-1],
@@ -255,7 +273,7 @@ def run(train_points,
                     ex.info['val']['accuracy'][-1] * 100))
 
             optimizer.zero_grad()
-            y = mlp(x.to(device))
+            y = network_model(x.to(device))
             if loss_function == 'CrossEntropy':
                 loss = loss_fn(y, labels.to(device))
             elif loss_function == 'MSE':
