@@ -172,7 +172,13 @@ def run(operators,
         use_positional_encoding=use_positional_encoding
     ).to(device)
 
-
+    with torch.no_grad():
+        for p in model.embedding.parameters():
+            p.data = embedding_initialization_scale * p.data
+        for p in model.decoder.parameters():
+            p.data = decoder_initialization_scale * p.data
+        for p in model.linear.parameters():
+            p.data = decoder_initialization_scale * p.data
 
     assert optimizer in optimizer_dict, f"Unrecognized optimizer choice: {optimizer}"
     optimizer = optimizer_dict[optimizer](
