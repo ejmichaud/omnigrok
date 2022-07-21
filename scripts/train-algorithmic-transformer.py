@@ -200,6 +200,9 @@ def run(operators,
 
     # prepare for logging
     ex.info['log_steps'] = []
+    ex.info['l2'] = []
+    ex.info['decoder_l2'] = []
+    ex.info['last_layer_l2'] = []
     ex.info['total'] = {
         'train': {
             'loss': [],
@@ -277,6 +280,12 @@ def run(operators,
                         ex.info[op]['val']['accuracy'].append(ops_accuracies[op] / ops_totals[op])
                     ex.info['total']['val']['loss'].append(sum(ops_losses.values()) / sum(ops_totals.values()))
                     ex.info['total']['val']['accuracy'].append(sum(ops_accuracies.values()) / sum(ops_totals.values()))
+                    embedding_l2 = sum(torch.pow(p, 2).sum() for p in model.embedding.parameters())
+                    decoder_l2 = sum(torch.pow(p, 2).sum() for p in model.decoder.parameters())
+                    last_layer_l2 = sum(torch.pow(p, 2).sum() for p in model.linear.parameters())
+                    ex.info['l2'].append(np.sqrt(embedding_l2.item() + decoder_l2.item() + last_layer_l2.item()))
+                    ex.info['decoder_l2'].append(np.sqrt(decoder_l2.item() + last_layer_l2.item()))
+                    ex.info['last_layer_l2'].append(np.sqrt(last_layer_l2.item()))
                 ex.info['log_steps'].append(steps)
                 if stop_early and ex.info['total']['val']['accuracy'][-1] > 0.98:
                     return
