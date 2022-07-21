@@ -8,7 +8,6 @@ This script performs training runs on MNIST, with lots of configuration options!
 
 from itertools import islice
 import random
-import math
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -135,7 +134,7 @@ def cfg():
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     dtype = torch.float32
     dnn = True
-
+    dataset_name = "MNIST"
 
     overwrite = None
 
@@ -166,6 +165,7 @@ def run(train_points,
         device,
         dtype,
         dnn,
+        dataset_name,
         seed,
         _log):
    
@@ -178,13 +178,31 @@ def run(train_points,
     np.random.seed(seed)
 
     # load dataset
-    train = torchvision.datasets.MNIST(root=download_directory, train=True, 
-        transform=torchvision.transforms.ToTensor(), download=True)
-    test = torchvision.datasets.MNIST(root=download_directory, train=False, 
-        transform=torchvision.transforms.ToTensor(), download=True)
+    ds = eval(f"torchvision.datasets.{dataset_name}")
+    if dataset_name == "MNIST":
+      transforms = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        # thank you copilot for those numbers
+        torchvision.transforms.Normalize((0.1307,), (0.3081,))
+      ])
+      image_size = 28
+      image_height = 28
+      
+    elif dataset_name == "CIFAR10":
+      transforms = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        # thank you copilot for those numbers
+        torchvision.transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+      ])
+      image_size = 32
+        
+    train = ds(root=download_directory, train=True, 
+        transform=transforms, download=True)
+    test = ds(root=download_directory, train=False, 
+        transform=transforms, download=True)
     train = torch.utils.data.Subset(train, range(train_points))
     train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size, shuffle=True)
-    
+
     assert activation in activation_dict, f"Unsupported activation function: {activation}"
     activation_fn = activation_dict[activation]
 
@@ -193,7 +211,7 @@ def run(train_points,
       layers = [nn.Flatten()]
       for i in range(depth):
           if i == 0:
-              layers.append(nn.Linear(784, width))
+              layers.append(nn.Linear(image_size**2, width))
               layers.append(activation_fn())
           elif i == depth - 1:
               layers.append(nn.Linear(width, 10))
@@ -204,18 +222,21 @@ def run(train_points,
 
     def create_cnn():
       layers = []
+      if dataset_name == "MNIST":
+        in_channels = 1
+      elif dataset_name == "CIFAR10":
+        in_channels = 3
       n_channels = width//5
       for i in range(depth):
           if i == 0:
-              #784 -> 28x28
-              layers.append(nn.Conv2d(1, n_channels, kernel_size=3, padding=1))
+              layers.append(nn.Conv2d(in_channels, n_channels, kernel_size=3, padding=1))
               layers.append(activation_fn())
           else:
               layers.append(nn.Conv2d(n_channels, n_channels, kernel_size=3, padding=1))
               layers.append(nn.MaxPool2d(2,2))
               layers.append(activation_fn())
       layers.append(nn.Flatten())
-      resolution = 28//2**(depth - 1)
+      resolution = image_size//2**(depth - 1)
       layers.append(nn.Linear(n_channels*resolution*resolution, 10))
       return nn.Sequential(*layers).to(device)
     
