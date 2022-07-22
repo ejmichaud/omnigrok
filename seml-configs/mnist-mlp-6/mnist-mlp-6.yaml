@@ -8,12 +8,12 @@ seml:
 
 slurm:
   experiments_per_job: 1
-  max_simultaneous_jobs: 10
+  max_simultaneous_jobs: 400
   sbatch_options:
     gres: gpu:1       # num GPUs
     mem: 4G          # memory
     cpus-per-task: 2  # num cores
-    time: 0-05:00     # max time, D-HH:MM
+    time: 0-06:00     # max time, D-HH:MM
 
 fixed:
   initialization_scale: 9.0
