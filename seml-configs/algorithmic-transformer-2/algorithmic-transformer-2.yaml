@@ -7,12 +7,12 @@ seml:
   conda_environment: torch-cuda
 
 slurm:
-  experiments_per_job: 2
+  experiments_per_job: 1
   max_simultaneous_jobs: 400
   sbatch_options:
     gres: gpu:1       # num GPUs
     mem: 6G           # memory
-    cpus-per-task: 4  # num cores
+    cpus-per-task: 2  # num cores
     time: 0-07:00     # max time, D-HH:MM
 
 fixed:
