@@ -11,8 +11,8 @@ slurm:
   max_simultaneous_jobs: 400
   sbatch_options:
     gres: gpu:1       # num GPUs
-    mem: 5G           # memory
-    cpus-per-task: 2  # num cores
+    mem: 6G           # memory
+    cpus-per-task: 4  # num cores
     time: 0-07:00     # max time, D-HH:MM
 
 fixed:
