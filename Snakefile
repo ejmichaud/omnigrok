@@ -6,6 +6,7 @@ onstart:
   gpu_jobs.store("gpu0", 0)
   gpu_jobs.store("gpu1", 0)
   print("gpu_jobs:", (gpu_jobs.fetch("gpu0"), gpu_jobs.fetch("gpu1")))
+  sleep(.5)
 
 def run_on_free_gpu(cmd, max_jobs_per_gpu=5):
   gpu_jobs = PersistentDict("jobs")
@@ -21,24 +22,26 @@ def run_on_free_gpu(cmd, max_jobs_per_gpu=5):
     sleep(15)
     print("waiting...")
 
-def train_cmd(path, init_scale, dataset_name, optimization_steps, seed):
+def train_cmd(path, init_scale, weight_decay, dataset_name, optimization_steps, seed):
   return " ".join(
     [
         f"python scripts/train-mnist-mlp.py run with",
         f"dnn=False",
         f"dataset_name={dataset_name}",
         f"initialization_scale={init_scale}",
+        f"weight_decay={weight_decay}",
         f"optimization_steps={optimization_steps}",
         f"seed={seed}",
         f"-F {path}",
     ]
   )
 class Locations:
-  init_scale = "logs/{dataset_name}/init-scale_{init_scale}_seed_{seed}"
+  init_scale = "exp-logs/{dataset_name}/init-scale_{init_scale}_weight-decay_{weight_decay}_seed_{seed}"
 
 class Configs:
   init_scales = [1,2,3,4,5,6,7,8,9,10]
-  seeds = list(range(1,6))
+  seeds = list(range(1,3))
+  weight_decays = [0, 1e-4, 1e-3, 1e-2, 1e-1]
   dataset_names = ["MNIST", "CIFAR10"]
 
 
@@ -46,16 +49,20 @@ rule all:
   input:
     expand(Locations.init_scale,
             init_scale=Configs.init_scales,
-            dataset_name=Configs.dataset_names[1:],
+            dataset_name=Configs.dataset_names,
+            weight_decay=Configs.weight_decays,
             seed=Configs.seeds),
 
 
 rule with_initialization_scale:
+  input:
+    script = "scripts/train-mnist-mlp.py",
   output: 
     logs = directory(Locations.init_scale)
   run: 
     cmd = train_cmd(output.logs,
                     init_scale=wildcards.init_scale,
+                    weight_decay=wildcards.weight_decay,
                     dataset_name=wildcards.dataset_name,
                     optimization_steps=100000,
                     seed=wildcards.seed)
