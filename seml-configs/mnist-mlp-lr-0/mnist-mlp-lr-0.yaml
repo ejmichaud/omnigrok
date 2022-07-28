@@ -1,0 +1,47 @@
+
+seml:
+  executable: scripts/train-mnist-mlp-lr.py
+  name: mnist-mlp-lr-0
+  output_dir: seml-configs/mnist-mlp-lr-0/log
+  project_root_dir: ../../
+  conda_environment: torch-cuda
+
+slurm:
+  experiments_per_job: 1
+  max_simultaneous_jobs: 400
+  sbatch_options:
+    gres: gpu:1       # num GPUs
+    mem: 4G          # memory
+    cpus-per-task: 2  # num cores
+    time: 0-06:00     # max time, D-HH:MM
+
+fixed:
+  initialization_scale: 9.0
+  train_points: 1000
+  optimization_steps: 100000
+  batch_size: 200
+  loss_function: "MSE"
+  optimizer: "AdamW"
+  lr: 0.001
+  download_directory: "/om/user/ericjm/Downloads/"
+
+  depth: 3
+  width: 200
+  activation: "ReLU"
+  seed: 0
+
+  log_freq: 200
+  verbose: False
+
+grid:
+  weight_decay:
+    type: loguniform
+    min: 1e-5
+    max: 1e2
+    num: 20
+  last_layer_lr:
+    type: loguniform
+    min: 1e-6
+    max: 1e1
+    num: 20
+
