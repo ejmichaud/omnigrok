@@ -1,19 +1,24 @@
 from pytools.persistent_dict import PersistentDict
 from time import sleep
+from numpy import argmin
+
+n_gpus = 8
 
 onstart:
   gpu_jobs = PersistentDict("jobs")
-  gpu_jobs.store("gpu0", 0)
-  gpu_jobs.store("gpu1", 0)
-  print("gpu_jobs:", (gpu_jobs.fetch("gpu0"), gpu_jobs.fetch("gpu1")))
+  for i in range(n_gpus):
+    gpu_jobs.store(f"gpu{i}", 2)
+  print("gpu_jobs:", [gpu_jobs.fetch(f"gpu{i}") for i in range(n_gpus)])
   sleep(.5)
 
 def run_on_free_gpu(cmd, max_jobs_per_gpu=5):
   gpu_jobs = PersistentDict("jobs")
   while True:
-    gc0, gc1 = (gpu_jobs.fetch("gpu0"), gpu_jobs.fetch("gpu1"))
-    if not (gc0 >= max_jobs_per_gpu and gc1 >= max_jobs_per_gpu):
-      cuda_id = 0 if gc0 <= gc1 else 1
+    njobs = [gpu_jobs.fetch(f"gpu{i}") for i in range(n_gpus)]
+    is_free = [njobs[i] < max_jobs_per_gpu for i in range(n_gpus)]
+    if any(is_free):
+      # get minimum
+      cuda_id = argmin(njobs)
       gpu_jobs.store(f"gpu{cuda_id}", gpu_jobs.fetch(f"gpu{cuda_id}") + 1)
       print(f"running on GPU {cuda_id}")
       shell(cmd + f" device=\"cuda:{cuda_id}\"")
