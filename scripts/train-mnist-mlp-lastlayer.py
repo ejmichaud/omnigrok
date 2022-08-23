@@ -140,7 +140,7 @@ def compute_loss(network, dataset, loss_function, device, N=2000, batch_size=50)
 # --------------------------
 @ex.config
 def cfg():
-
+    
     # training parameters
     train_points = None
     test_points = None
@@ -150,6 +150,7 @@ def cfg():
     optimizer = 'AdamW'
     weight_decay = 0.1
     lr = 1e-3
+    lr_last_layer = lr
     initialization_scale = 1.0
     download_directory = "data/"
 
@@ -186,6 +187,7 @@ def run(train_points,
         optimizer,
         weight_decay,
         lr,
+        lr_last_layer,
         initialization_scale,
         download_directory,
         activation,
@@ -197,9 +199,9 @@ def run(train_points,
         dataset_name,
         seed,
         _log):
-
+   
     device = torch.device(device)
-
+    
     torch.set_default_dtype(dtype)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -208,7 +210,7 @@ def run(train_points,
 
     # load dataset
     image_size = 32
-
+    
     if dataset_name == "MNIST":
       transforms = tt.Compose([
         tt.Resize((image_size, image_size)),
@@ -217,24 +219,24 @@ def run(train_points,
         tt.Normalize((0.1307,), (0.3081,))
       ])
       train_transforms = valid_transforms = transforms
-
-
+      
+      
     elif dataset_name == "CIFAR10":
       stats = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
       train_transforms = tt.Compose([
         tt.RandomCrop(image_size, padding=4, padding_mode='reflect'),
-        tt.RandomHorizontalFlip(),
-        tt.ToTensor(),
+        tt.RandomHorizontalFlip(), 
+        tt.ToTensor(), 
         # thank you copilot for those numbers
         tt.Normalize(*stats)
       ])
       valid_transforms = tt.Compose([tt.ToTensor(), tt.Normalize(*stats)])
-
+        
     ds = eval(f"datasets.{dataset_name}")
 
-    train = ds(root=download_directory, train=True,
+    train = ds(root=download_directory, train=True, 
         transform=train_transforms, download=True)
-    test = ds(root=download_directory, train=False,
+    test = ds(root=download_directory, train=False, 
         transform=valid_transforms, download=True)
 
     if train_points:
@@ -260,46 +262,58 @@ def run(train_points,
           else:
               layers.append(nn.Linear(width, width))
               layers.append(activation_fn())
-
-
-      model = nn.Sequential(*layers).to(device)
-      with torch.no_grad():
-          for p in model.parameters():
-              p.data = initialization_scale * p.data
-      return model
+      return nn.Sequential(*layers).to(device)
 
     def create_cnn():
-
+      
       if dataset_name == "MNIST":
         in_channels = 1
       elif dataset_name == "CIFAR10":
         in_channels = 3
-
-      from resnet import ResNet9
-      model = ResNet9(in_channels=in_channels, num_classes=10).to(device)
-
-      with torch.no_grad():
-        model.classifier[-1].weight.data = initialization_scale * model.classifier[-1].weight.data
-
-      return model
-
+      layers = []
+      depth = 3
+      n_channels = 128
+      for i in range(depth):
+          if i == 0:
+              layers.append(nn.Conv2d(in_channels, n_channels, kernel_size=3, padding=1))
+              layers.append(activation_fn())
+          else:
+              layers.append(nn.Conv2d(n_channels, n_channels, kernel_size=3, padding=1))
+              layers.append(nn.MaxPool2d(2,2))
+              layers.append(activation_fn())
+      layers.append(nn.Flatten())
+      resolution = image_size//2**(depth - 1)
+      layers.append(nn.Linear(n_channels*resolution*resolution, 10))
+      return nn.Sequential(*layers).to(device)
+    
     if dnn:
       network_model = create_dnn()
     else:
       network_model = create_cnn()
-
+    
+    with torch.no_grad():
+        for p in network_model.parameters():
+            p.data = initialization_scale * p.data
     _log.debug("Created model.")
 
     # create optimizer
     assert optimizer in optimizer_dict, f"Unsupported optimizer choice: {optimizer}"
-    optimizer = optimizer_dict[optimizer](network_model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # param groups for optimizer (for different layers)
+    if dnn:
+      param_groups = [{'params': network_model[:-1].parameters(), 'lr': lr, 'weight_decay': weight_decay},
+                      {'params': network_model[-1].parameters(), 'lr': lr_last_layer, 'weight_decay': weight_decay}]
+    else:
+      param_groups = [{'params': network_model.parameters(), 'lr': lr, 'weight_decay': weight_decay}]
+    
+    optimizer = optimizer_dict[optimizer](param_groups, weight_decay=weight_decay)
 
     # define loss function
     assert loss_function in loss_function_dict
     loss_fn = loss_function_dict[loss_function]()
 
     # prepare for logging
-
+    
     ex.info['log_steps'] = []
     ex.info['l2'] = []
     ex.info['last_layer_l2'] = []
@@ -311,7 +325,7 @@ def run(train_points,
         'loss': [],
         'accuracy': []
     }
-
+    
     steps = 0
     one_hots = torch.eye(10, 10).to(device)
     with tqdm(total=optimization_steps, disable=not verbose) as pbar:
@@ -331,7 +345,7 @@ def run(train_points,
                 pbar.set_description("L: {0:1.1e}|{1:1.1e}. A: {2:2.1f}%|{3:2.1f}%".format(
                     ex.info['train']['loss'][-1],
                     ex.info['val']['loss'][-1],
-                    ex.info['train']['accuracy'][-1] * 100,
+                    ex.info['train']['accuracy'][-1] * 100, 
                     ex.info['val']['accuracy'][-1] * 100))
 
             optimizer.zero_grad()
