@@ -219,6 +219,7 @@ def run(train_points,
         tt.Normalize((0.1307,), (0.3081,))
       ])
       train_transforms = valid_transforms = transforms
+      nchannels=1
       
       
     elif dataset_name == "CIFAR10":
@@ -231,6 +232,7 @@ def run(train_points,
         tt.Normalize(*stats)
       ])
       valid_transforms = tt.Compose([tt.ToTensor(), tt.Normalize(*stats)])
+      nchannels=3
         
     ds = eval(f"datasets.{dataset_name}")
 
@@ -255,7 +257,7 @@ def run(train_points,
       depth = 3
       for i in range(depth):
           if i == 0:
-              layers.append(nn.Linear(image_size**2, width))
+              layers.append(nn.Linear(image_size**2*nchannels, width))
               layers.append(activation_fn())
           elif i == depth - 1:
               layers.append(nn.Linear(width, 10))
@@ -266,24 +268,20 @@ def run(train_points,
 
     def create_cnn():
       
-      if dataset_name == "MNIST":
-        in_channels = 1
-      elif dataset_name == "CIFAR10":
-        in_channels = 3
       layers = []
       depth = 3
-      n_channels = 128
+      hidden_dim = 128
       for i in range(depth):
           if i == 0:
-              layers.append(nn.Conv2d(in_channels, n_channels, kernel_size=3, padding=1))
+              layers.append(nn.Conv2d(nchannels, hidden_dim, kernel_size=3, padding=1))
               layers.append(activation_fn())
           else:
-              layers.append(nn.Conv2d(n_channels, n_channels, kernel_size=3, padding=1))
+              layers.append(nn.Conv2d(nchannels, hidden_dim, kernel_size=3, padding=1))
               layers.append(nn.MaxPool2d(2,2))
               layers.append(activation_fn())
       layers.append(nn.Flatten())
       resolution = image_size//2**(depth - 1)
-      layers.append(nn.Linear(n_channels*resolution*resolution, 10))
+      layers.append(nn.Linear(hidden_dim*resolution*resolution, 10))
       return nn.Sequential(*layers).to(device)
     
     if dnn:

@@ -217,6 +217,7 @@ def run(train_points,
         tt.Normalize((0.1307,), (0.3081,))
       ])
       train_transforms = valid_transforms = transforms
+      in_channels = 1
 
 
     elif dataset_name == "CIFAR10":
@@ -229,6 +230,7 @@ def run(train_points,
         tt.Normalize(*stats)
       ])
       valid_transforms = tt.Compose([tt.ToTensor(), tt.Normalize(*stats)])
+      in_channels=3
 
     ds = eval(f"datasets.{dataset_name}")
 
@@ -253,7 +255,7 @@ def run(train_points,
       depth = 3
       for i in range(depth):
           if i == 0:
-              layers.append(nn.Linear(image_size**2, width))
+              layers.append(nn.Linear(image_size**2*in_channels, width))
               layers.append(activation_fn())
           elif i == depth - 1:
               layers.append(nn.Linear(width, 10))
@@ -269,11 +271,6 @@ def run(train_points,
       return model
 
     def create_cnn():
-
-      if dataset_name == "MNIST":
-        in_channels = 1
-      elif dataset_name == "CIFAR10":
-        in_channels = 3
 
       from resnet import ResNet9
       model = ResNet9(in_channels=in_channels, num_classes=10).to(device)
